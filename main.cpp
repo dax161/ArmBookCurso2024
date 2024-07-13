@@ -1,4 +1,5 @@
 #include "mbed.h"
+#include "arm_book_lib.h"
 
 DigitalIn Button(D2);
 
@@ -12,11 +13,9 @@ bool alarmSate = OFF;
 
 void inputsInit()
 {
-    alarmBuzzer.mode(PullDown);
-
+    Button.mode(PullDown);
 }
 
 int main()
 {
-    inputsInit();
 }
