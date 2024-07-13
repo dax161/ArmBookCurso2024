@@ -1,5 +1,5 @@
 #include "mbed.h"
-#include ""
+
 DigitalIn Button(D2);
 
 AnalogIn sensor1(A0);
@@ -18,4 +18,5 @@ void inputsInit()
 
 int main()
 {
+    inputsInit();
 }
