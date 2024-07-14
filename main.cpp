@@ -98,7 +98,7 @@ bool activacion_desactivacion_Alarma(int aforo_actual, int aforo_maximo)
         }
     }
 
-    return true; // Continuar el sistema si la alarma no se desactiva
+    return true; // Continuar el sistema
 }
 
 int main()
