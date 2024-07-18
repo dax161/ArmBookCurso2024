@@ -8,11 +8,12 @@ AnalogIn sensorDeteccion2(A1);
 DigitalOut alarmaLed(D0);
 DigitalOut alarmaBuzzer(D1);
 
-UnbufferedSerial uartUsb(USBTX, USBRX, 9600);
+UnbufferedSerial uartUsb(USBTX, USBRX, 115200);
 
 int aforo_actual = 0;
 int aforo_maximo = 40;
-bool estado_alarma = OFF;
+bool estado_alarma;
+bool pausa_alarma;
 
 void inputsInit()
 {
@@ -21,78 +22,91 @@ void inputsInit()
 
 void outputsInit()
 {
-    estado_alarma = OFF;
+    pausa_alarma = OFF;
     alarmaLed = OFF;
     alarmaBuzzer = OFF;
 }
 
-void imprimirAforo()
+void uart_aforo()
 {
-    char str[30];
-    sprintf ( str, "Aforo: %d/%d\r\n", aforo_actual,aforo_maximo );
-    uartUsb.write( str, strlen(str) );
+    char str[100] = "";
+    int stringLength;
+    if(aforo_actual > aforo_maximo){
+        sprintf ( str, "Aforo: %.d/%.d, aforo maximo superado\r\n", aforo_actual, aforo_maximo);
+        stringLength = strlen(str); 
+        uartUsb.write( str, stringLength ); 
+    }
+    else {
+        sprintf ( str, "Aforo: %.d/%.d\r\n", aforo_actual, aforo_maximo);
+        stringLength = strlen(str); 
+        uartUsb.write( str, stringLength ); 
+    }
 }
-
-int procesarSensores()
+void lectura_sensores(int distanciaDetectada1, int distanciaDetectada2)
 {
-    int cont1 = 0;
-    int cont2 = 0;
+    distanciaDetectada1 = ((sensorDeteccion1.read() * 5) * 3072);
+    distanciaDetectada2 = ((sensorDeteccion2.read() * 5) * 3072);
+}
+void deteccion_personas(int cont1,int cont2)
+{
     int distanciaDetectada1;
     int distanciaDetectada2;
-    bool sensores_activados = false;
-
-    while (!sensores_activados)
-    {
-        distanciaDetectada1 = ((sensorDeteccion1.read() * 5) * 3072);
-        distanciaDetectada2 = ((sensorDeteccion2.read() * 5) * 3072);
-
-        if (distanciaDetectada1 < 1000) { 
-            if (cont2 == 0) {
-                cont1 = 2;
-            } else if (cont2 == 1) {
+    lectura_sensores(distanciaDetectada1,distanciaDetectada2);
+    if (distanciaDetectada1 < 1000) 
+    { 
+        if (cont2 == 0) {
+            cont1 = 2;
+        } 
+        else if (cont2 == 1) {
                 cont1 = 1;
             }
-        }
+    }
 
-        if (sensor2Reading > 2.0) { // Ajusta el umbral según tu sensor
-            if (cont1 == 0) {
-                cont2 = 2;
-            } else if (cont1 == 1) {
-                cont2 = 1;
-            }
+    if (distanciaDetectada2 < 1000) 
+    {
+        if (cont1 == 0) {
+            cont2 = 2;
+        } 
+        else if (cont1 == 1) {
+            cont2 = 1;
         }
+    }
 
-        if ((cont1 + cont2) > 3) {
-            if (cont1 == 2) {
-                aforo_actual++;
-            } else if (cont2 == 2) {
-                aforo_actual--;
-            }
-            cont1 = 0;
-            cont2 = 0;
-            sensores_activados = true;
+    if ((cont1 + cont2) > 3) {
+        if (cont1 == 2) {
+            aforo_actual++;
         }
+        else if (cont2 == 2) {
+            aforo_actual--;
+        }
+        cont1 = 0;
+        cont2 = 0;
     }
 }
 
-bool activacion_desactivacion_Alarma(int aforo_actual, int aforo_maximo)
+void activacion_desactivacion_Alarma()
 {
-    while (aforo_actual > aforo_maximo)
-    {
-        alarmLed = ON;
-        alarmBuzzer = ON;
-        if (Button.read() == 1) {
+    if (aforo_actual > aforo_maximo && !estado_alarma) {
+        alarmaLed = ON;
+        alarmaBuzzer = ON;
+    } else {
             alarmaLed = OFF;
             alarmaBuzzer = OFF;
-            return false; 
         }
+    if (Button.read() == 1 && aforo_actual > aforo_maximo) {
+        estado_alarma = ON;
+    } else if (Button.read() == 1 && estado_alarma) {
+        estado_alarma = !estado_alarma;
     }
-
-    return true; 
 }
 
 int main()
-{   
+{   int cont1;
+    int cont2;
     inputsInit();
     outputsInit();
+    while(true){
+        deteccion_personas(cont1,cont2);
+        activacion_desactivacion_Alarma();
+    }
 }
