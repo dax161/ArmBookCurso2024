@@ -27,21 +27,6 @@ void outputsInit()
     alarmaBuzzer = OFF;
 }
 
-void uart_aforo()
-{
-    char str[100] = "";
-    int stringLength;
-    if(aforo_actual > aforo_maximo){
-        sprintf ( str, "Aforo: %.d/%.d, aforo maximo superado\r\n", aforo_actual, aforo_maximo);
-        stringLength = strlen(str); 
-        uartUsb.write( str, stringLength ); 
-    }
-    else {
-        sprintf ( str, "Aforo: %.d/%.d\r\n", aforo_actual, aforo_maximo);
-        stringLength = strlen(str); 
-        uartUsb.write( str, stringLength ); 
-    }
-}
 void lectura_sensores(int distanciaDetectada1, int distanciaDetectada2)
 {
     distanciaDetectada1 = ((sensorDeteccion1.read() * 5) * 3072);
@@ -100,6 +85,22 @@ void activacion_desactivacion_Alarma()
     }
 }
 
+void uart_aforo()
+{
+    char str[100] = "";
+    int stringLength;
+    if(aforo_actual > aforo_maximo){
+        sprintf ( str, "Aforo: %.d/%.d, aforo maximo superado\r\n", aforo_actual, aforo_maximo);
+        stringLength = strlen(str); 
+        uartUsb.write( str, stringLength ); 
+    }
+    else {
+        sprintf ( str, "Aforo: %.d/%.d\r\n", aforo_actual, aforo_maximo);
+        stringLength = strlen(str); 
+        uartUsb.write( str, stringLength ); 
+    }
+}
+
 int main()
 {   int cont1;
     int cont2;
@@ -108,5 +109,6 @@ int main()
     while(true){
         deteccion_personas(cont1,cont2);
         activacion_desactivacion_Alarma();
+        uart_aforo();
     }
 }
