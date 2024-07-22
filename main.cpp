@@ -1,6 +1,8 @@
 #include "mbed.h"
 #include "arm_book_lib.h"
 
+#define TIEMPO_PARPADEO_ALARMA 1000
+
 DigitalIn Button(D2);
 AnalogIn sensorDeteccion1(A0);
 AnalogIn sensorDeteccion2(A1);
@@ -14,6 +16,13 @@ int aforo_actual = 0;
 int aforo_maximo = 40;
 bool estado_alarma;
 bool pausa_alarma;
+
+void inputsInit();
+void outputsInit();
+void lectura_sensores();
+void deteccion_personas();
+void activacion_desactivacion_Alarma();
+void uart_aforo();
 
 void inputsInit()
 {
@@ -33,7 +42,7 @@ void lectura_sensores(int distanciaDetectada1, int distanciaDetectada2)
     distanciaDetectada2 = ((sensorDeteccion2.read() * 5) * 3072);
 }
 void deteccion_personas(int cont1,int cont2)
-{
+{   //distancia detectada en mm
     int distanciaDetectada1;
     int distanciaDetectada2;
     lectura_sensores(distanciaDetectada1,distanciaDetectada2);
@@ -69,11 +78,16 @@ void deteccion_personas(int cont1,int cont2)
     }
 }
 
+// Al presionar el botón, la alarma se desactiva y sigue sensando.
+// Si se presiona nuevamente, la alarma se reactivará si el aforo sigue superado.
 void activacion_desactivacion_Alarma()
 {
     if (aforo_actual > aforo_maximo && !estado_alarma) {
         alarmaLed = ON;
         alarmaBuzzer = ON;
+        delay(TIEMPO_PARPADEO_ALARMA);
+        alarmaLed = OFF;
+        alarmaBuzzer = OFF;
     } else {
             alarmaLed = OFF;
             alarmaBuzzer = OFF;
