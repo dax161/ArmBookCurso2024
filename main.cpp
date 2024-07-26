@@ -1,7 +1,9 @@
 #include "mbed.h"
 #include "arm_book_lib.h"
 
-#define TIEMPO_PARPADEO_ALARMA 1000
+#define TIEMPO_PARPADEO_ALARMA 10
+#define FACTOR_ESCALA 614.4 // factor de escala del sensor US-016 en mm/V 
+#define UMBRAL_DETECCION 1000 // distancia en mm de deteccion
 
 DigitalIn Button(D2);
 AnalogIn sensorDeteccion1(A0);
@@ -12,16 +14,16 @@ DigitalOut alarmaBuzzer(D1);
 
 UnbufferedSerial uartUsb(USBTX, USBRX, 115200);
 
-int aforo_actual = 0;
-int aforo_maximo = 40;
-bool estado_alarma;
-bool pausa_alarma;
+int aforoActual = 0;
+int aforoMaximo = 40;
+bool alarmaActivada;
+bool alarmaPausada;
 
 void inputsInit();
 void outputsInit();
 void lectura_sensores();
-void deteccion_personas();
-void activacion_desactivacion_Alarma();
+void deteccion_personas(int *distanciaDetectada1, int *distanciaDetectada2);
+void activacion_desactivacion_Alarma(int *cont1, int *cont2);
 void uart_aforo();
 
 void inputsInit()
@@ -31,88 +33,94 @@ void inputsInit()
 
 void outputsInit()
 {
-    pausa_alarma = OFF;
+    alarmaActivada = false;
+    alarmaPausada = false;
     alarmaLed = OFF;
     alarmaBuzzer = OFF;
 }
 
-void lectura_sensores(int distanciaDetectada1, int distanciaDetectada2)
+void lectura_sensores(int *distanciaDetectada1, int *distanciaDetectada2)
 {
-    distanciaDetectada1 = ((sensorDeteccion1.read() * 5) * 3072);
-    distanciaDetectada2 = ((sensorDeteccion2.read() * 5) * 3072);
+    *distanciaDetectada1 = ((sensorDeteccion1.read() * 3.3) * FACTOR_ESCALA);
+    *distanciaDetectada2 = ((sensorDeteccion2.read() * 3.3) * FACTOR_ESCALA);
 }
-void deteccion_personas(int cont1,int cont2)
-{   //distancia detectada en mm
+
+void deteccion_personas(int *cont1, int *cont2)
+{
     int distanciaDetectada1;
     int distanciaDetectada2;
-    lectura_sensores(distanciaDetectada1,distanciaDetectada2);
-    if (distanciaDetectada1 < 1000) 
-    { 
-        if (cont2 == 0) {
-            cont1 = 2;
-        } 
-        else if (cont2 == 1) {
-                cont1 = 1;
-            }
-    }
+    lectura_sensores(&distanciaDetectada1, &distanciaDetectada2);
 
-    if (distanciaDetectada2 < 1000) 
+    if (distanciaDetectada1 < UMBRAL_DETECCION) 
     {
-        if (cont1 == 0) {
-            cont2 = 2;
+        if (*cont2 == 0) {
+            *cont1 = 2;
         } 
-        else if (cont1 == 1) {
-            cont2 = 1;
+        else if (*cont2 == 1) {
+            *cont1 = 1;
         }
     }
 
-    if ((cont1 + cont2) > 3) {
-        if (cont1 == 2) {
-            aforo_actual++;
+    if (distanciaDetectada2 < UMBRAL_DETECCION) 
+    {
+        if (*cont1 == 0) {
+            *cont2 = 2;
+        } 
+        else if (*cont1 == 1) {
+            *cont2 = 1;
         }
-        else if (cont2 == 2) {
-            aforo_actual--;
+    }
+
+    if ((*cont1 + *cont2) > 3) {
+        if (*cont1 == 2) {
+            aforoActual++;
         }
-        cont1 = 0;
-        cont2 = 0;
+        else if (*cont2 == 2) {
+            aforoActual--;
+        }
+        *cont1 = 0;
+        *cont2 = 0;
     }
 }
 
 // Al presionar el botón, la alarma se desactiva y sigue sensando.
 // Si se presiona nuevamente, la alarma se reactivará si el aforo sigue superado.
-void activacion_desactivacion_Alarma()
-{
-    if (aforo_actual > aforo_maximo && !estado_alarma) {
+
+void manejarAlarma() {
+    if (aforoActual > aforoMaximo && !alarmaPausada) {
+        alarmaActivada = true;
         alarmaLed = ON;
         alarmaBuzzer = ON;
         delay(TIEMPO_PARPADEO_ALARMA);
         alarmaLed = OFF;
         alarmaBuzzer = OFF;
-    } else {
-            alarmaLed = OFF;
-            alarmaBuzzer = OFF;
-        }
-    if (Button.read() == 1 && aforo_actual > aforo_maximo) {
-        estado_alarma = ON;
-    } else if (Button.read() == 1 && estado_alarma) {
-        estado_alarma = !estado_alarma;
+    } else if (aforoActual <= aforoMaximo && alarmaPausada) {
+        alarmaActivada = false;
+        alarmaLed = OFF;
+        alarmaBuzzer = OFF;
+    }
+
+    if (Button.read() == 1) {
+        alarmaPausada = !alarmaPausada;
     }
 }
 
 void uart_aforo()
 {
-    char str[100] = "";
+    char str[150] = "";
     int stringLength;
-    if(aforo_actual > aforo_maximo){
-        sprintf ( str, "Aforo: %.d/%.d, aforo maximo superado\r\n", aforo_actual, aforo_maximo);
-        stringLength = strlen(str); 
-        uartUsb.write( str, stringLength ); 
+    
+    if (aforoActual > aforoMaximo) {
+        stringLength = sprintf(str, "Aforo: %d/%d, aforo maximo superado\r\n", aforoActual, aforoMaximo);
+    } else {
+        stringLength = sprintf(str, "Aforo: %d/%d\r\n", aforoActual, aforoMaximo);
     }
-    else {
-        sprintf ( str, "Aforo: %.d/%.d\r\n", aforo_actual, aforo_maximo);
-        stringLength = strlen(str); 
-        uartUsb.write( str, stringLength ); 
+    
+    if (alarmaPausada) {
+        stringLength += sprintf(str + stringLength, "Alarma en pausa\r\n");
     }
+    
+    uartUsb.write(str, stringLength); 
 }
 
 int main()
@@ -121,8 +129,8 @@ int main()
     inputsInit();
     outputsInit();
     while(true){
-        deteccion_personas(cont1,cont2);
-        activacion_desactivacion_Alarma();
+        deteccion_personas(&cont1, &cont2);
+        manejarAlarma();
         uart_aforo();
     }
 }
